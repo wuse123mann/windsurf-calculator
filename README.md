@@ -17,15 +17,16 @@ Zusätzlich lässt sich die Könnerstufe wählen (Einsteiger bis Profi), weil si
 vor allem das Boardvolumen stark beeinflusst.
 
 ## Formeln (Richtwerte)
-- **Segel:** 0,874 × Gewicht ÷ Wind^0,822 (m², Wind in kn), begrenzt auf 2,5–12 m².
-  Abgeglichen mit üblichen Segeltabellen (75 kg: 12 kn ≈ 8,5 m², 15 kn ≈ 7,0 m²,
-  22 kn ≈ 5,2 m², 30 kn ≈ 4,0 m²). Die bekannte Faustformel Gewicht × 1,34 ÷ Knoten
-  liefert bei viel Wind zu kleine Segel.
-- **Board:** Gleitvolumen eines guten Surfers = 25 L + Gewicht × Faktor(Wind)
-  (Faktor 1,33 bei 12 kn, 1,11 bei 15 kn, 0,90 bei 20 kn, 0,72 bei 25 kn, 0,63 bei 30 kn).
-  Fortgeschritten: × 1,10 + 5 L, Aufsteiger: × 1,25 + 15 L, Einsteiger: Gewicht + 110 L.
-  Beispiel 90 kg bei 15 kn: Profi 125 L, Fortgeschritten 140 L.
-- **Breite:** 38 cm + 0,29 × Volumen. **Finne:** Segel × 5,2 cm (Waveboard × 4,4).
+- **Segel:** 0,725 × Gewicht ÷ Wind^0,834 (m², Wind in kn), begrenzt auf 2,5–12 m².
+  Abgeglichen mit einer üblichen Segeltabelle (80 kg: 10 kn 8,5 m², 12 kn 7,5 m²,
+  16 kn 6,0 m², 20 kn 4,7 m², 25 kn 4,0 m²) und dem Praxiswert 108 kg / 15 kn / 8 m².
+  Ein- und Aufsteiger: Obergrenze nach surf-Magazin (z. B. 75–90 kg: 5,0–6,2 m²).
+- **Board:**
+  - Einsteiger: Gewicht + 100 L (Faustformel surf-Magazin)
+  - Fortgeschritten (Freeride): Gewicht + Windzuschlag, 12 kn +42 L, 15 kn +27 L,
+    20 kn +12 L, 25 kn +2 L, 30 kn −4 L (z. B. 108 kg bei 15 kn → 135 L)
+  - Profi: 10 L weniger als Fortgeschritten, Aufsteiger: deutlich mehr (mind. Gewicht + 35 L)
+- **Breite:** 38 cm + 0,29 × Volumen. **Finne:** 10 cm + 3,6 × Segel (Waveboard: Segel × 4,4).
 
 Die Logik steckt in `app/src/main/java/de/wuse/windsurfrechner/WindsurfCalculator.kt`.
 

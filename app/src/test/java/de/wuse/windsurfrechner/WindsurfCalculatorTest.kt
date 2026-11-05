@@ -7,19 +7,21 @@ import org.junit.Test
 class WindsurfCalculatorTest {
 
     @Test
-    fun profi90kgBei15Knoten() {
-        // Praxisfall: 90 kg, 15 kn -> ca. 8,5 m² und ein Freerideboard um 125 L
-        val r = WindsurfCalculator.calculate(90.0, 15.0, Level.PROFI)
-        assertEquals(8.5, r.sailM2, 0.001)
-        assertEquals(125, r.volumeL)
-        assertEquals("Freeride / Slalom", r.boardType)
-        assertEquals(74, r.boardWidthCm)
+    fun praxiswert108kgBei15Knoten() {
+        // Realer Wert: 108 kg, 15 kn, fortgeschritten -> 8 m² und 135 L passen gut
+        val r = WindsurfCalculator.calculate(108.0, 15.0, Level.FORTGESCHRITTEN)
+        assertEquals(8.2, r.sailM2, 0.001)
+        assertEquals(135, r.volumeL)
+        assertEquals("Freerideboard", r.boardType)
+        assertEquals(77, r.boardWidthCm)
+        assertEquals(40, r.finCm)
     }
 
     @Test
     fun segelWieInUeblichenTabellen() {
-        assertEquals(8.5, WindsurfCalculator.sailSize(75.0, 12.0, Level.PROFI), 0.001)
-        assertEquals(4.0, WindsurfCalculator.sailSize(75.0, 30.0, Level.PROFI), 0.001)
+        // Referenztabelle 80 kg: 10 kn 8,5 m², 25 kn 4,0 m²
+        assertEquals(8.5, WindsurfCalculator.sailSize(80.0, 10.0, Level.FORTGESCHRITTEN), 0.001)
+        assertEquals(4.0, WindsurfCalculator.sailSize(80.0, 25.0, Level.FORTGESCHRITTEN), 0.001)
     }
 
     @Test
@@ -29,7 +31,7 @@ class WindsurfCalculatorTest {
         val auf = WindsurfCalculator.boardVolume(80.0, 15.0, Level.AUFSTEIGER)
         val ein = WindsurfCalculator.boardVolume(80.0, 15.0, Level.EINSTEIGER)
         assertTrue(profi < fortg && fortg < auf && auf < ein)
-        assertEquals(130, fortg)
+        assertEquals(105, fortg)
     }
 
     @Test
@@ -53,8 +55,8 @@ class WindsurfCalculatorTest {
     @Test
     fun einsteigerBekommenKleinesSegelUndGrossesBoard() {
         val r = WindsurfCalculator.calculate(80.0, 10.0, Level.EINSTEIGER)
-        assertEquals(5.7, r.sailM2, 0.001)
-        assertEquals(195, r.volumeL)
+        assertEquals(5.0, r.sailM2, 0.001)
+        assertEquals(180, r.volumeL)
     }
 
     @Test

@@ -6,24 +6,21 @@ import kotlin.math.roundToInt
 
 /**
  * Könnerstufe – beeinflusst vor allem das Boardvolumen.
- * Grundlage ist das Gleitvolumen eines sehr guten Surfers; je weniger Erfahrung,
- * desto mehr Volumen (Stabilität, Angleiten, Wasserstart) kommt dazu.
+ * Grundlage ist das Freeride-Volumen eines sicher gleitenden Surfers (Fortgeschritten).
  */
-enum class Level(
-    val label: String,
-    val description: String,
-    val volumeFactor: Double,
-    val volumeAdd: Double,
-) {
-    EINSTEIGER("Einsteiger", "Lernt gerade, fährt noch nicht im Gleiten", 1.0, 0.0),
-    AUFSTEIGER("Aufsteiger", "Wasserstart, erstes Gleiten im Trapez", 1.25, 15.0),
-    FORTGESCHRITTEN("Fortgeschritten", "Gleitet sicher mit Fußschlaufen und Trapez", 1.10, 5.0),
-    PROFI("Profi", "Powerhalse, Springen, Wellenreiten", 1.0, 0.0);
+enum class Level(val label: String, val description: String) {
+    EINSTEIGER("Einsteiger", "Lernt gerade, fährt noch nicht im Gleiten"),
+    AUFSTEIGER("Aufsteiger", "Wasserstart, erstes Gleiten im Trapez"),
+    FORTGESCHRITTEN("Fortgeschritten", "Gleitet sicher mit Fußschlaufen und Trapez"),
+    PROFI("Profi", "Powerhalse, Springen, Wellenreiten");
 
-    /** Größtes sinnvolles Segel für diese Stufe. */
+    /**
+     * Größtes sinnvolles Segel. Für Ein- und Aufsteiger nach surf-Magazin:
+     * < 60 kg 4,0–4,2 m², 60–75 kg 4,2–5,3 m², 75–90 kg 5,0–6,2 m², > 90 kg 5,5–6,5 m².
+     */
     fun maxSail(weightKg: Double): Double = when (this) {
-        EINSTEIGER -> 2.5 + weightKg * 0.04
-        AUFSTEIGER -> 4.0 + weightKg * 0.05
+        EINSTEIGER -> (1.0 + weightKg * 0.05).coerceAtMost(6.0)
+        AUFSTEIGER -> (1.3 + weightKg * 0.055).coerceAtMost(6.5)
         else -> WindsurfCalculator.MAX_SAIL
     }.coerceAtMost(WindsurfCalculator.MAX_SAIL)
 }
@@ -88,24 +85,23 @@ object WindsurfCalculator {
     const val MAX_SAIL = 12.0
 
     /**
-     * Segelfläche (m²) = 0,874 × Gewicht ÷ Wind^0,822.
-     * Angepasst an übliche Segel-Wind-Tabellen (z. B. 75 kg: 12 kn ≈ 8,5 m²,
-     * 15 kn ≈ 7,0 m², 22 kn ≈ 5,2 m², 30 kn ≈ 4,0 m²). Die einfache Faustformel
-     * Gewicht × 1,34 ÷ Knoten liefert bei viel Wind zu kleine Segel.
+     * Segelfläche (m²) = 0,725 × Gewicht ÷ Wind^0,834 (Wind in Knoten).
+     * Angepasst an übliche Segeltabellen, z. B. 80 kg: 10 kn 8,5 m², 12 kn 7,5 m²,
+     * 16 kn 6,0 m², 20 kn 4,7 m², 25 kn 4,0 m² – und an den Praxiswert
+     * 108 kg bei 15 kn mit 8 m².
      */
-    private const val SAIL_K = 0.874
-    private const val SAIL_EXP = 0.822
+    private const val SAIL_K = 0.725
+    private const val SAIL_EXP = 0.834
 
     private const val MAX_VOLUME = 250.0
 
     /**
-     * Gleitvolumen eines guten Surfers: 25 L + Gewicht × Faktor(Wind).
-     * Beispiele: 90 kg → 15 kn ≈ 125 L, 20 kn ≈ 105 L, 25 kn ≈ 90 L, 30 kn ≈ 80 L.
+     * Liter über dem Körpergewicht für ein Freeride-Board (Fortgeschritten), je nach Wind.
+     * 15 kn: Gewicht + 27 L (z. B. 108 kg → 135 L, 80 kg → 105 L), 25 kn: etwa Gewicht.
      */
-    private const val VOLUME_BASE = 25.0
-    private val VOLUME_FACTOR = listOf(
-        5.0 to 1.85, 8.0 to 1.75, 10.0 to 1.55, 12.0 to 1.33, 15.0 to 1.11, 18.0 to 0.97,
-        20.0 to 0.90, 22.0 to 0.82, 25.0 to 0.72, 30.0 to 0.63, 35.0 to 0.58, 45.0 to 0.55,
+    private val FREERIDE_EXTRA = listOf(
+        5.0 to 85.0, 8.0 to 70.0, 10.0 to 55.0, 12.0 to 42.0, 15.0 to 27.0, 18.0 to 17.0,
+        20.0 to 12.0, 22.0 to 7.0, 25.0 to 2.0, 30.0 to -4.0, 35.0 to -8.0, 45.0 to -12.0,
     )
 
     private val TABLE_WINDS = listOf(8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 30, 35)
@@ -125,27 +121,24 @@ object WindsurfCalculator {
         return round1(rawSail(weightKg, windKnots).coerceIn(MIN_SAIL, upper))
     }
 
-    private fun volumeFactor(windKnots: Double): Double {
-        val w = windKnots.coerceIn(VOLUME_FACTOR.first().first, VOLUME_FACTOR.last().first)
-        for (i in 0 until VOLUME_FACTOR.lastIndex) {
-            val (a, fa) = VOLUME_FACTOR[i]
-            val (b, fb) = VOLUME_FACTOR[i + 1]
+    private fun freerideExtra(windKnots: Double): Double {
+        val w = windKnots.coerceIn(FREERIDE_EXTRA.first().first, FREERIDE_EXTRA.last().first)
+        for (i in 0 until FREERIDE_EXTRA.lastIndex) {
+            val (a, fa) = FREERIDE_EXTRA[i]
+            val (b, fb) = FREERIDE_EXTRA[i + 1]
             if (w <= b) return fa + (fb - fa) * (w - a) / (b - a)
         }
-        return VOLUME_FACTOR.last().second
+        return FREERIDE_EXTRA.last().second
     }
 
-    /** Volumen, mit dem ein sehr guter Surfer bei diesem Wind sicher gleitet. */
-    fun planingVolume(weightKg: Double, windKnots: Double): Double =
-        VOLUME_BASE + weightKg * volumeFactor(windKnots)
-
     fun boardVolume(weightKg: Double, windKnots: Double, level: Level): Int {
+        val extra = freerideExtra(windKnots)
         val volume = when (level) {
-            // Einsteiger brauchen vor allem Stabilität – fast unabhängig vom Wind.
-            Level.EINSTEIGER -> weightKg + 110 + (12.0 - windKnots).coerceAtLeast(0.0) * 2
-            Level.AUFSTEIGER -> (planingVolume(weightKg, windKnots) * level.volumeFactor + level.volumeAdd)
-                .coerceAtLeast(weightKg + 50)
-            else -> planingVolume(weightKg, windKnots) * level.volumeFactor + level.volumeAdd
+            // surf-Magazin-Faustformel für Einsteiger: Gewicht + 100 L
+            Level.EINSTEIGER -> weightKg + 100
+            Level.AUFSTEIGER -> weightKg + (0.6 * extra + 40).coerceAtLeast(35.0)
+            Level.FORTGESCHRITTEN -> (weightKg + extra).coerceAtLeast(maxOf(weightKg - 3, 60.0))
+            Level.PROFI -> (weightKg + extra - 10).coerceAtLeast(maxOf(weightKg - 10, 60.0))
         }
         return roundTo5(volume.coerceIn(50.0, MAX_VOLUME))
     }
@@ -176,8 +169,9 @@ object WindsurfCalculator {
         val type = boardType(volume, weight, level)
 
         val width = (38 + volume * 0.29).coerceIn(54.0, 92.0).roundToInt()
-        val finFactor = if (type == "Waveboard") 4.4 else 5.2
-        val fin = (sail * finFactor).coerceIn(16.0, 56.0).roundToInt()
+        // Freeride-Finne ≈ 10 cm + 3,6 × Segel (7,2–8,6 m² → 36–40 cm), Wavefinne kürzer
+        val finRaw = if (type == "Waveboard") sail * 4.4 else 10 + sail * 3.6
+        val fin = finRaw.coerceIn(16.0, 52.0).roundToInt()
 
         val bft = beaufort(wind)
 
