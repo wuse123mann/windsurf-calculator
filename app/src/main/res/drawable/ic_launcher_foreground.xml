@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Segel -->
+    <path android:fillColor="#FFFFFF" android:pathData="M53,27 L53,71 L76,71 Q72,48 53,27 Z" />
+    <path android:fillColor="#FF7A45" android:pathData="M53,57 L72.4,57 L76,71 L53,71 Z" />
+    <!-- Mast -->
+    <path android:fillColor="#FFFFFF" android:pathData="M50.5,25 h2 v50 h-2 Z" />
+    <!-- Board -->
+    <path android:fillColor="#FFFFFF" android:pathData="M31,77 Q54,73.5 80,76.5 Q83.5,78.5 79,80.5 L35,80.5 Q29,79.5 31,77 Z" />
+    <!-- Welle -->
+    <path android:fillColor="#9FDCF2" android:pathData="M28,85 q6.5,-3.5 13,0 t13,0 t13,0 t13,0 v3 h-52 Z" />
+</vector>
