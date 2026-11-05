@@ -27,6 +27,35 @@ enum class Level(
     }.coerceAtMost(WindsurfCalculator.MAX_SAIL)
 }
 
+/** Einheit für die Windeingabe. Intern rechnet die App immer in Knoten. */
+enum class WindUnit(val label: String, val min: Int, val max: Int) {
+    KNOTEN("kn", 5, 45),
+    KMH("km/h", 10, 83),
+    MS("m/s", 3, 23),
+    BFT("Bft", 2, 9);
+
+    fun fromKnots(knots: Double): Double = when (this) {
+        KNOTEN -> knots
+        KMH -> knots * 1.852
+        MS -> knots * 0.5144
+        BFT -> WindsurfCalculator.beaufort(knots).toDouble()
+    }
+
+    fun toKnots(value: Double): Double = when (this) {
+        KNOTEN -> value
+        KMH -> value / 1.852
+        MS -> value / 0.5144
+        BFT -> BFT_MIDDLE_KNOTS[value.roundToInt().coerceIn(2, 9)] ?: 15.0
+    }
+
+    private companion object {
+        /** Mitte des Knotenbereichs je Beaufort-Stufe. */
+        val BFT_MIDDLE_KNOTS = mapOf(
+            2 to 5.0, 3 to 8.5, 4 to 13.5, 5 to 19.0, 6 to 24.5, 7 to 30.5, 8 to 37.0, 9 to 44.0,
+        )
+    }
+}
+
 data class Hint(val text: String, val isWarning: Boolean)
 
 data class TableRow(val windKnots: Int, val sailM2: Double, val volumeL: Int)

@@ -1,6 +1,7 @@
 # Windsurf-Rechner 🏄
 
-Android-App, die aus **Körpergewicht (kg)** und **Wind (Knoten)** die passende
+Android-App, die aus **Körpergewicht (kg)** und **Wind** (wahlweise in Knoten, km/h, m/s
+oder Beaufort) die passende
 **Segelgröße** und **Boardgröße** berechnet.
 
 ## Was die App anzeigt

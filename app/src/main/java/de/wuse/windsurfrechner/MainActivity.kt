@@ -128,11 +128,19 @@ fun CalculatorScreen(prefs: SharedPreferences) {
         )
     }
 
-    LaunchedEffect(weight, wind, level) {
+    var windUnit by rememberSaveable {
+        mutableStateOf(
+            runCatching { WindUnit.valueOf(prefs.getString("windeinheit", null) ?: "") }
+                .getOrDefault(WindUnit.KNOTEN),
+        )
+    }
+
+    LaunchedEffect(weight, wind, level, windUnit) {
         prefs.edit()
             .putFloat("gewicht", weight)
             .putFloat("wind", wind)
             .putString("stufe", level.name)
+            .putString("windeinheit", windUnit.name)
             .apply()
     }
 
@@ -163,16 +171,19 @@ fun CalculatorScreen(prefs: SharedPreferences) {
                         onChange = { weight = it },
                         supporting = "inkl. Neoprenanzug",
                     )
-                    NumberInput(
-                        title = "Windstärke",
-                        unit = "kn",
-                        value = wind,
-                        min = WindsurfCalculator.MIN_WIND.toFloat(),
-                        max = WindsurfCalculator.MAX_WIND.toFloat(),
-                        onChange = { wind = it },
-                        supporting = "${result.windKmh.de(0)} km/h · ${result.windMs.de(1)} m/s · " +
-                            "${result.beaufort} Bft (${result.beaufortName})",
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        WindUnitPicker(windUnit) { windUnit = it }
+                        NumberInput(
+                            title = "Windstärke",
+                            unit = windUnit.label,
+                            value = windUnit.fromKnots(wind.toDouble()).toFloat(),
+                            min = windUnit.min.toFloat(),
+                            max = windUnit.max.toFloat(),
+                            onChange = { wind = windUnit.toKnots(it.toDouble()).toFloat() },
+                            supporting = "${wind.toDouble().de(0)} kn · ${result.windKmh.de(0)} km/h · " +
+                                "${result.windMs.de(1)} m/s · ${result.beaufort} Bft (${result.beaufortName})",
+                        )
+                    }
                     LevelPicker(level) { level = it }
                 }
             }
@@ -236,8 +247,9 @@ private fun NumberInput(
 ) {
     var text by remember { mutableStateOf(value.roundToInt().toString()) }
     // Text nachziehen, wenn der Wert über Slider oder Knöpfe geändert wurde
-    LaunchedEffect(value) {
-        if (text.replace(',', '.').toFloatOrNull() != value) text = value.roundToInt().toString()
+    LaunchedEffect(value, unit) {
+        val shown = text.replace(',', '.').toFloatOrNull()
+        if (shown == null || abs(shown - value) >= 0.5f) text = value.roundToInt().toString()
     }
     val parsed = text.replace(',', '.').toFloatOrNull()
     val isError = parsed == null || parsed < min || parsed > max
@@ -290,6 +302,26 @@ private fun StepButton(label: String, onClick: () -> Unit) {
         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
     ) {
         Text(label, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun WindUnitPicker(selected: WindUnit, onSelect: (WindUnit) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "Einheit",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 4.dp),
+        )
+        WindUnit.entries.forEach { u ->
+            FilterChip(
+                selected = u == selected,
+                onClick = { onSelect(u) },
+                label = { Text(u.label, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 

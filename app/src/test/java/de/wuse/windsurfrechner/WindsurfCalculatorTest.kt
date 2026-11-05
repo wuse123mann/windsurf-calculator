@@ -51,6 +51,16 @@ class WindsurfCalculatorTest {
     }
 
     @Test
+    fun windEinheitenUmrechnen() {
+        assertEquals(27.78, WindUnit.KMH.fromKnots(15.0), 0.01)
+        assertEquals(15.0, WindUnit.KMH.toKnots(27.78), 0.01)
+        assertEquals(15.0, WindUnit.MS.toKnots(WindUnit.MS.fromKnots(15.0)), 0.001)
+        assertEquals(4.0, WindUnit.BFT.fromKnots(15.0), 0.001)
+        assertEquals(4.0, WindUnit.BFT.fromKnots(WindUnit.BFT.toKnots(4.0)), 0.001)
+        assertEquals(15.0, WindUnit.KNOTEN.toKnots(15.0), 0.001)
+    }
+
+    @Test
     fun sturmWarnung() {
         val r = WindsurfCalculator.calculate(80.0, 38.0, Level.PROFI)
         assertTrue(r.hints.any { it.isWarning })
