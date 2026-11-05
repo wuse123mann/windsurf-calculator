@@ -10,6 +10,8 @@ oder Beaufort) die passende
 - Wind in km/h, m/s und Beaufort
 - Hinweise und Warnungen (zu wenig Wind, zu viel Wind für die Könnerstufe, Sturm)
 - Tabelle: welches Segel/Board bei welchem Wind für dein Gewicht
+- **Umrechner** (eigener Tab): Knoten ⇄ km/h ⇄ m/s ⇄ Beaufort (+ mph), mit Beaufort-Skala
+  und Übernahme des Werts in den Rechner
 
 Zusätzlich lässt sich die Könnerstufe wählen (Einsteiger bis Profi), weil sie
 vor allem das Boardvolumen stark beeinflusst.

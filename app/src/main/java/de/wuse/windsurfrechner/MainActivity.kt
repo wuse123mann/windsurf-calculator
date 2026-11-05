@@ -34,6 +34,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -41,12 +43,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -113,7 +117,7 @@ fun WindsurfTheme(content: @Composable () -> Unit) {
 
 // ---------- Hilfsfunktionen ----------
 
-private fun Double.de(decimals: Int = 1): String = String.format(Locale.GERMANY, "%.${decimals}f", this)
+internal fun Double.de(decimals: Int = 1): String = String.format(Locale.GERMANY, "%.${decimals}f", this)
 
 // ---------- Screen ----------
 
@@ -144,6 +148,8 @@ fun CalculatorScreen(prefs: SharedPreferences) {
             .apply()
     }
 
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+
     val result = remember(weight, wind, level) {
         WindsurfCalculator.calculate(weight.toDouble(), wind.toDouble(), level)
     }
@@ -160,50 +166,69 @@ fun CalculatorScreen(prefs: SharedPreferences) {
         ) {
             Header()
 
-            ElevatedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                    NumberInput(
-                        title = "Dein Gewicht",
-                        unit = "kg",
-                        value = weight,
-                        min = WindsurfCalculator.MIN_WEIGHT.toFloat(),
-                        max = WindsurfCalculator.MAX_WEIGHT.toFloat(),
-                        onChange = { weight = it },
-                        supporting = "inkl. Neoprenanzug",
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        WindUnitPicker(windUnit) { windUnit = it }
-                        NumberInput(
-                            title = "Windstärke",
-                            unit = windUnit.label,
-                            value = windUnit.fromKnots(wind.toDouble()).toFloat(),
-                            min = windUnit.min.toFloat(),
-                            max = windUnit.max.toFloat(),
-                            onChange = { wind = windUnit.toKnots(it.toDouble()).toFloat() },
-                            supporting = "${wind.toDouble().de(0)} kn · ${result.windKmh.de(0)} km/h · " +
-                                "${result.windMs.de(1)} m/s · ${result.beaufort} Bft (${result.beaufortName})",
-                        )
-                    }
-                    LevelPicker(level) { level = it }
-                }
+            TabRow(
+                selectedTabIndex = tab,
+                modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+            ) {
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Rechner") })
+                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Umrechner") })
             }
 
-            ResultCards(result)
+            if (tab == 1) {
+                ConverterContent(initialKnots = wind) { kn ->
+                    wind = kn.coerceIn(
+                        WindsurfCalculator.MIN_WIND.toFloat(),
+                        WindsurfCalculator.MAX_WIND.toFloat(),
+                    )
+                    tab = 0
+                }
+            } else {
 
-            result.hints.forEach { HintCard(it) }
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                        NumberInput(
+                            title = "Dein Gewicht",
+                            unit = "kg",
+                            value = weight,
+                            min = WindsurfCalculator.MIN_WEIGHT.toFloat(),
+                            max = WindsurfCalculator.MAX_WEIGHT.toFloat(),
+                            onChange = { weight = it },
+                            supporting = "inkl. Neoprenanzug",
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            WindUnitPicker(windUnit) { windUnit = it }
+                            NumberInput(
+                                title = "Windstärke",
+                                unit = windUnit.label,
+                                value = windUnit.fromKnots(wind.toDouble()).toFloat(),
+                                min = windUnit.min.toFloat(),
+                                max = windUnit.max.toFloat(),
+                                onChange = { wind = windUnit.toKnots(it.toDouble()).toFloat() },
+                                supporting = "${wind.toDouble().de(0)} kn · ${result.windKmh.de(0)} km/h · " +
+                                    "${result.windMs.de(1)} m/s · ${result.beaufort} Bft (${result.beaufortName})",
+                            )
+                        }
+                        LevelPicker(level) { level = it }
+                    }
+                }
 
-            SailTable(table, wind.roundToInt(), weight.roundToInt())
+                ResultCards(result)
 
-            Text(
-                "Richtwerte nach der Faustformel Segel = Gewicht × 1,34 ÷ Knoten. " +
-                    "Revier, Böigkeit, Material und Fahrstil verschieben die ideale Größe.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-            )
+                result.hints.forEach { HintCard(it) }
+
+                SailTable(table, wind.roundToInt(), weight.roundToInt())
+
+                Text(
+                    "Richtwerte nach der Faustformel Segel = Gewicht × 1,34 ÷ Knoten. " +
+                        "Revier, Böigkeit, Material und Fahrstil verschieben die ideale Größe.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                )
+            }
         }
     }
 }
@@ -227,7 +252,7 @@ private fun Header() {
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                "Segel- und Boardgröße für dein Gewicht und den Wind",
+                "Segel- und Boardgröße plus Wind-Umrechner",
                 color = Color.White.copy(alpha = 0.85f),
                 style = MaterialTheme.typography.bodyMedium,
             )

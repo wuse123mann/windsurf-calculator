@@ -28,11 +28,11 @@ enum class Level(
 }
 
 /** Einheit für die Windeingabe. Intern rechnet die App immer in Knoten. */
-enum class WindUnit(val label: String, val min: Int, val max: Int) {
-    KNOTEN("kn", 5, 45),
-    KMH("km/h", 10, 83),
-    MS("m/s", 3, 23),
-    BFT("Bft", 2, 9);
+enum class WindUnit(val label: String, val min: Int, val max: Int, val converterMax: Double) {
+    KNOTEN("kn", 5, 45, 80.0),
+    KMH("km/h", 10, 83, 150.0),
+    MS("m/s", 3, 23, 41.0),
+    BFT("Bft", 2, 9, 12.0);
 
     fun fromKnots(knots: Double): Double = when (this) {
         KNOTEN -> knots
@@ -45,13 +45,14 @@ enum class WindUnit(val label: String, val min: Int, val max: Int) {
         KNOTEN -> value
         KMH -> value / 1.852
         MS -> value / 0.5144
-        BFT -> BFT_MIDDLE_KNOTS[value.roundToInt().coerceIn(2, 9)] ?: 15.0
+        BFT -> BFT_MIDDLE_KNOTS[value.roundToInt().coerceIn(0, 12)] ?: 15.0
     }
 
     private companion object {
         /** Mitte des Knotenbereichs je Beaufort-Stufe. */
         val BFT_MIDDLE_KNOTS = mapOf(
-            2 to 5.0, 3 to 8.5, 4 to 13.5, 5 to 19.0, 6 to 24.5, 7 to 30.5, 8 to 37.0, 9 to 44.0,
+            0 to 0.5, 1 to 2.0, 2 to 5.0, 3 to 8.5, 4 to 13.5, 5 to 19.0, 6 to 24.5,
+            7 to 30.5, 8 to 37.0, 9 to 44.0, 10 to 51.5, 11 to 59.5, 12 to 66.0,
         )
     }
 }
