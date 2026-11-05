@@ -32,4 +32,4 @@ Die Logik steckt in `app/src/main/java/de/wuse/windsurfrechner/WindsurfCalculato
 
 ## Bauen
 Jeder Push auf `main` baut per GitHub Actions eine signierte APK
-(Artefakt **WindsurfRechner-apk**, außerdem immer die neueste APK im Branch `apk`). Lokal: `./gradlew assembleRelease`.
+(Artefakt **WindsurfRechner-apk**, außerdem als GitHub-Release `v1.0.<Build>` und im Branch `apk`). Lokal: `./gradlew assembleRelease`.

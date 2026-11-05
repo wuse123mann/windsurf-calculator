@@ -44,3 +44,15 @@ jobs:
           git add WindsurfRechner.apk
           git commit -q -m "APK Build ${{ github.run_number }} (${{ github.sha }})"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" apk
+
+      - name: Release mit APK erstellen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="v1.0.${{ github.run_number }}"
+          gh release create "$VERSION" WindsurfRechner.apk \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Windsurf-Rechner ${VERSION#v}" \
+            --notes "Automatischer Build ${{ github.run_number }} von ${GITHUB_SHA::7}: $(git log -1 --format=%s)" \
+            --latest
