@@ -219,7 +219,7 @@ fun CalculatorScreen(prefs: SharedPreferences) {
                 SailTable(table, wind.roundToInt(), weight.roundToInt())
 
                 Text(
-                    "Richtwerte nach der Faustformel Segel = Gewicht × 1,34 ÷ Knoten. " +
+                    "Richtwerte nach gängigen Segel- und Boardtabellen für gleitfähige Bedingungen. " +
                         "Revier, Böigkeit, Material und Fahrstil verschieben die ideale Größe.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

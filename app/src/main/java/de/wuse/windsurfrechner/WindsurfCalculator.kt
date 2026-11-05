@@ -1,23 +1,24 @@
 package de.wuse.windsurfrechner
 
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
-/** Könnerstufe – beeinflusst vor allem das Boardvolumen. */
+/**
+ * Könnerstufe – beeinflusst vor allem das Boardvolumen.
+ * Grundlage ist das Gleitvolumen eines sehr guten Surfers; je weniger Erfahrung,
+ * desto mehr Volumen (Stabilität, Angleiten, Wasserstart) kommt dazu.
+ */
 enum class Level(
     val label: String,
     val description: String,
-    /** Liter über dem Körpergewicht bei mittlerem Wind (15 kn). */
-    val volumeOffset: Int,
-    /** Wie stark der Wind das Volumen verändert (0 = gar nicht, 1 = voll). */
-    val windFactor: Double,
-    /** Untergrenze: Liter über (oder unter) dem Körpergewicht. */
-    val minVolumeOffset: Int,
+    val volumeFactor: Double,
+    val volumeAdd: Double,
 ) {
-    EINSTEIGER("Einsteiger", "Lernt gerade, fährt noch nicht im Gleiten", 100, 0.4, 80),
-    AUFSTEIGER("Aufsteiger", "Wasserstart, erstes Gleiten im Trapez", 55, 0.8, 30),
-    FORTGESCHRITTEN("Fortgeschritten", "Gleitet sicher mit Fußschlaufen und Trapez", 25, 1.0, -5),
-    PROFI("Profi", "Powerhalse, Springen, Wellenreiten", 5, 1.0, -20);
+    EINSTEIGER("Einsteiger", "Lernt gerade, fährt noch nicht im Gleiten", 1.0, 0.0),
+    AUFSTEIGER("Aufsteiger", "Wasserstart, erstes Gleiten im Trapez", 1.25, 15.0),
+    FORTGESCHRITTEN("Fortgeschritten", "Gleitet sicher mit Fußschlaufen und Trapez", 1.10, 5.0),
+    PROFI("Profi", "Powerhalse, Springen, Wellenreiten", 1.0, 0.0);
 
     /** Größtes sinnvolles Segel für diese Stufe. */
     fun maxSail(weightKg: Double): Double = when (this) {
@@ -86,10 +87,27 @@ object WindsurfCalculator {
     const val MIN_SAIL = 2.5
     const val MAX_SAIL = 12.0
 
-    /** Bekannte Faustformel: Segelfläche (m²) = Gewicht (kg) × 1,34 ÷ Wind (kn). */
-    const val SAIL_FACTOR = 1.34
+    /**
+     * Segelfläche (m²) = 0,874 × Gewicht ÷ Wind^0,822.
+     * Angepasst an übliche Segel-Wind-Tabellen (z. B. 75 kg: 12 kn ≈ 8,5 m²,
+     * 15 kn ≈ 7,0 m², 22 kn ≈ 5,2 m², 30 kn ≈ 4,0 m²). Die einfache Faustformel
+     * Gewicht × 1,34 ÷ Knoten liefert bei viel Wind zu kleine Segel.
+     */
+    private const val SAIL_K = 0.874
+    private const val SAIL_EXP = 0.822
 
-    private const val MAX_VOLUME = 260.0
+    private const val MAX_VOLUME = 250.0
+
+    /**
+     * Gleitvolumen eines guten Surfers: 25 L + Gewicht × Faktor(Wind).
+     * Beispiele: 90 kg → 15 kn ≈ 125 L, 20 kn ≈ 105 L, 25 kn ≈ 90 L, 30 kn ≈ 80 L.
+     */
+    private const val VOLUME_BASE = 25.0
+    private val VOLUME_FACTOR = listOf(
+        5.0 to 1.85, 8.0 to 1.75, 10.0 to 1.55, 12.0 to 1.33, 15.0 to 1.11, 18.0 to 0.97,
+        20.0 to 0.90, 22.0 to 0.82, 25.0 to 0.72, 30.0 to 0.63, 35.0 to 0.58, 45.0 to 0.55,
+    )
+
     private val TABLE_WINDS = listOf(8, 10, 12, 14, 16, 18, 20, 22, 25, 28, 30, 35)
 
     private val BEAUFORT_LIMITS = intArrayOf(1, 4, 7, 11, 17, 22, 28, 34, 41, 48, 56, 64)
@@ -100,26 +118,46 @@ object WindsurfCalculator {
     )
 
     fun rawSail(weightKg: Double, windKnots: Double): Double =
-        weightKg * SAIL_FACTOR / windKnots.coerceAtLeast(1.0)
+        SAIL_K * weightKg / windKnots.coerceAtLeast(1.0).pow(SAIL_EXP)
 
     fun sailSize(weightKg: Double, windKnots: Double, level: Level): Double {
         val upper = level.maxSail(weightKg).coerceAtLeast(MIN_SAIL)
         return round1(rawSail(weightKg, windKnots).coerceIn(MIN_SAIL, upper))
     }
 
+    private fun volumeFactor(windKnots: Double): Double {
+        val w = windKnots.coerceIn(VOLUME_FACTOR.first().first, VOLUME_FACTOR.last().first)
+        for (i in 0 until VOLUME_FACTOR.lastIndex) {
+            val (a, fa) = VOLUME_FACTOR[i]
+            val (b, fb) = VOLUME_FACTOR[i + 1]
+            if (w <= b) return fa + (fb - fa) * (w - a) / (b - a)
+        }
+        return VOLUME_FACTOR.last().second
+    }
+
+    /** Volumen, mit dem ein sehr guter Surfer bei diesem Wind sicher gleitet. */
+    fun planingVolume(weightKg: Double, windKnots: Double): Double =
+        VOLUME_BASE + weightKg * volumeFactor(windKnots)
+
     fun boardVolume(weightKg: Double, windKnots: Double, level: Level): Int {
-        val volume = weightKg + level.volumeOffset + level.windFactor * (15.0 - windKnots) * 3.0
-        val minVolume = weightKg + level.minVolumeOffset
-        return roundTo5(volume.coerceIn(minVolume, MAX_VOLUME.coerceAtLeast(minVolume)))
+        val volume = when (level) {
+            // Einsteiger brauchen vor allem Stabilität – fast unabhängig vom Wind.
+            Level.EINSTEIGER -> weightKg + 110 + (12.0 - windKnots).coerceAtLeast(0.0) * 2
+            Level.AUFSTEIGER -> (planingVolume(weightKg, windKnots) * level.volumeFactor + level.volumeAdd)
+                .coerceAtLeast(weightKg + 50)
+            else -> planingVolume(weightKg, windKnots) * level.volumeFactor + level.volumeAdd
+        }
+        return roundTo5(volume.coerceIn(50.0, MAX_VOLUME))
     }
 
     fun boardType(volumeL: Int, weightKg: Double, level: Level): String {
         if (level == Level.EINSTEIGER) return "Einsteigerboard mit Schwert"
-        val extra = volumeL - weightKg
+        val ratio = volumeL / weightKg
         return when {
-            extra >= 60 -> "Großes Freerideboard, gern mit Schwert"
-            extra >= 25 -> "Freerideboard"
-            extra >= 5 -> "Freemove / Freestyle-Wave"
+            ratio >= 1.6 -> if (level == Level.AUFSTEIGER) "Großes Freerideboard mit Schwert" else "Großes Freeride- / Formulaboard"
+            ratio >= 1.25 -> if (level == Level.PROFI) "Freeride / Slalom" else "Freerideboard"
+            ratio >= 1.05 -> "Freemove / Freestyle"
+            ratio >= 0.95 -> "Freestyle-Wave / Bump & Jump"
             else -> "Waveboard"
         }
     }
@@ -137,24 +175,19 @@ object WindsurfCalculator {
         val volume = boardVolume(weight, wind, level)
         val type = boardType(volume, weight, level)
 
-        val width = when (level) {
-            Level.EINSTEIGER -> (68 + (volume - 150) * 0.12).coerceIn(70.0, 90.0)
-            Level.AUFSTEIGER -> (48 + sail * 3.2).coerceIn(56.0, 88.0)
-            else -> (45 + sail * 3.2).coerceIn(54.0, 88.0)
-        }.roundToInt()
-
-        val finFactor = if (type == "Waveboard") 4.2 else 5.5
+        val width = (38 + volume * 0.29).coerceIn(54.0, 92.0).roundToInt()
+        val finFactor = if (type == "Waveboard") 4.4 else 5.2
         val fin = (sail * finFactor).coerceIn(16.0, 56.0).roundToInt()
 
         val bft = beaufort(wind)
 
         return CalculationResult(
             sailM2 = sail,
-            sailMinM2 = round1((sail * 0.92).coerceIn(MIN_SAIL, sailUpper)),
-            sailMaxM2 = round1((sail * 1.08).coerceIn(MIN_SAIL, sailUpper)),
+            sailMinM2 = round1((sail * 0.93).coerceIn(MIN_SAIL, sailUpper)),
+            sailMaxM2 = round1((sail * 1.07).coerceIn(MIN_SAIL, sailUpper)),
             volumeL = volume,
-            volumeMinL = (volume - 10).coerceAtLeast(30),
-            volumeMaxL = volume + 10,
+            volumeMinL = roundTo5(volume * 0.92),
+            volumeMaxL = roundTo5((volume * 1.08).coerceAtMost(MAX_VOLUME)),
             boardWidthCm = width,
             finCm = fin,
             boardType = type,
@@ -174,26 +207,26 @@ object WindsurfCalculator {
         val list = mutableListOf<Hint>()
         val raw = rawSail(weight, wind)
 
-        if (wind < 8) list += Hint(
-            "Unter 8 Knoten kommt man kaum ins Gleiten. Mit großem Board, Foil oder einfach " +
-                "entspanntem Dahingleiten hast du trotzdem Spaß.", false,
+        if (wind < 10 && level != Level.EINSTEIGER) list += Hint(
+            "Unter etwa 10 Knoten kommt man kaum ins Gleiten. Dafür braucht es ein sehr großes " +
+                "Board mit großem Segel – oder ein Foil.", false,
         )
         if (level == Level.EINSTEIGER || level == Level.AUFSTEIGER) {
             if (raw > level.maxSail(weight)) list += Hint(
-                "Das Segel ist bewusst kleiner als die Faustformel ergibt – ein großes Segel " +
-                    "ist zum Lernen zu schwer und zu kraftvoll.", false,
+                "Das Segel ist bewusst kleiner gewählt, als es zum Gleiten nötig wäre – ein großes " +
+                    "Segel ist zum Lernen zu schwer und zu kraftvoll.", false,
             )
         } else if (raw > MAX_SAIL) list += Hint(
             "Zum Gleiten bräuchtest du mehr als 12 m². Bei diesem Wind wird es zäh – " +
-                "großes Board oder Foil helfen.", true,
+                "Formulaboard oder Foil helfen.", true,
         )
         if (raw < MIN_SAIL) list += Hint(
             "Selbst 2,5 m² sind hier eigentlich zu viel. Das ist Wind für Leichtgewichte und Profis.",
             true,
         )
         if (level == Level.EINSTEIGER && wind > 12) list += Hint(
-            "Für Einsteiger ist das zu viel Wind. Am besten nur mit Surflehrer oder an einem " +
-                "ruhigeren Tag aufs Wasser.", true,
+            "Für Einsteiger ist das zu viel Wind. Ideal zum Lernen sind 5–12 Knoten – am besten " +
+                "mit Surflehrer oder an einem ruhigeren Tag.", true,
         )
         if (level == Level.AUFSTEIGER && wind > 22) list += Hint(
             "Ganz schön viel Wind für Aufsteiger – nur bei auflandigem Wind und nicht allein.", true,
@@ -201,7 +234,7 @@ object WindsurfCalculator {
         if (wind >= 34) list += Hint(
             "Sturm! Nur für sehr erfahrene Surfer, nie allein und nie bei ablandigem Wind.", true,
         )
-        if (wind in 8.0..34.0 && list.none { it.isWarning }) list += Hint(
+        if (list.none { it.isWarning }) list += Hint(
             "Bei böigem Wind lieber eine Nummer kleiner, bei konstantem Wind eher größer wählen.", false,
         )
         return list

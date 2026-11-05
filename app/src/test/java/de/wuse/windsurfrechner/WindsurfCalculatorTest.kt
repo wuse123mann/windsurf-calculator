@@ -7,11 +7,39 @@ import org.junit.Test
 class WindsurfCalculatorTest {
 
     @Test
-    fun faustformelFuerFortgeschrittene() {
-        val r = WindsurfCalculator.calculate(80.0, 15.0, Level.FORTGESCHRITTEN)
-        assertEquals(7.1, r.sailM2, 0.001)
-        assertEquals(105, r.volumeL)
-        assertEquals("Freerideboard", r.boardType)
+    fun profi90kgBei15Knoten() {
+        // Praxisfall: 90 kg, 15 kn -> ca. 8,5 m² und ein Freerideboard um 125 L
+        val r = WindsurfCalculator.calculate(90.0, 15.0, Level.PROFI)
+        assertEquals(8.5, r.sailM2, 0.001)
+        assertEquals(125, r.volumeL)
+        assertEquals("Freeride / Slalom", r.boardType)
+        assertEquals(74, r.boardWidthCm)
+    }
+
+    @Test
+    fun segelWieInUeblichenTabellen() {
+        assertEquals(8.5, WindsurfCalculator.sailSize(75.0, 12.0, Level.PROFI), 0.001)
+        assertEquals(4.0, WindsurfCalculator.sailSize(75.0, 30.0, Level.PROFI), 0.001)
+    }
+
+    @Test
+    fun wenigerKoennenMehrVolumen() {
+        val profi = WindsurfCalculator.boardVolume(80.0, 15.0, Level.PROFI)
+        val fortg = WindsurfCalculator.boardVolume(80.0, 15.0, Level.FORTGESCHRITTEN)
+        val auf = WindsurfCalculator.boardVolume(80.0, 15.0, Level.AUFSTEIGER)
+        val ein = WindsurfCalculator.boardVolume(80.0, 15.0, Level.EINSTEIGER)
+        assertTrue(profi < fortg && fortg < auf && auf < ein)
+        assertEquals(130, fortg)
+    }
+
+    @Test
+    fun boardNieKleinerAlsKoerpergewichtBeiMittleremWind() {
+        for (kg in 50..120 step 10) {
+            for (level in Level.entries) {
+                val v = WindsurfCalculator.boardVolume(kg.toDouble(), 18.0, level)
+                assertTrue("$kg kg / $level: $v L", v >= kg)
+            }
+        }
     }
 
     @Test
@@ -26,7 +54,7 @@ class WindsurfCalculatorTest {
     fun einsteigerBekommenKleinesSegelUndGrossesBoard() {
         val r = WindsurfCalculator.calculate(80.0, 10.0, Level.EINSTEIGER)
         assertEquals(5.7, r.sailM2, 0.001)
-        assertEquals(185, r.volumeL)
+        assertEquals(195, r.volumeL)
     }
 
     @Test
@@ -36,9 +64,10 @@ class WindsurfCalculatorTest {
     }
 
     @Test
-    fun boardNieKleinerAlsUntergrenze() {
-        val v = WindsurfCalculator.boardVolume(80.0, 40.0, Level.PROFI)
-        assertEquals(60, v)
+    fun waveboardBeiSturm() {
+        val r = WindsurfCalculator.calculate(80.0, 40.0, Level.PROFI)
+        assertEquals(70, r.volumeL)
+        assertEquals("Waveboard", r.boardType)
     }
 
     @Test
