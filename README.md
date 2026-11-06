@@ -13,7 +13,7 @@ oder Beaufort) die passende
 - **Umrechner** (eigener Tab): Knoten ⇄ km/h ⇄ m/s ⇄ Beaufort (+ mph), mit Beaufort-Skala
   und Übernahme des Werts in den Rechner
 
-Zusätzlich lässt sich die Könnerstufe wählen (Einsteiger bis Profi), weil sie
+Zusätzlich lassen sich der Segeltyp (mit/ohne Camber) und die Könnerstufe wählen (Einsteiger bis Profi), weil sie
 vor allem das Boardvolumen stark beeinflusst.
 
 ## Formeln (Richtwerte)
@@ -21,6 +21,8 @@ vor allem das Boardvolumen stark beeinflusst.
   Abgeglichen mit einer üblichen Segeltabelle (80 kg: 10 kn 8,5 m², 12 kn 7,5 m²,
   16 kn 6,0 m², 20 kn 4,7 m², 25 kn 4,0 m²) und dem Praxiswert 108 kg / 15 kn / 8 m².
   Ein- und Aufsteiger: Obergrenze nach surf-Magazin (z. B. 75–90 kg: 5,0–6,2 m²).
+- **Camber-Segel:** 5 % kleiner als ohne Camber bei gleicher Zugkraft
+  (z. B. 8,2 m² ohne Camber ≈ 7,8 m² mit Camber); Finne richtet sich nach der Zugkraft.
 - **Board:**
   - Einsteiger: Gewicht + 100 L (Faustformel surf-Magazin)
   - Fortgeschritten (Freeride): Gewicht + Windzuschlag, 12 kn +42 L, 15 kn +27 L,

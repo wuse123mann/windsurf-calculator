@@ -25,6 +25,16 @@ enum class Level(val label: String, val description: String) {
     }.coerceAtMost(WindsurfCalculator.MAX_SAIL)
 }
 
+/**
+ * Segeltyp. Camber-Segel haben ein stabiles, effizientes Profil und ziehen pro m²
+ * spürbar mehr – Faustregel: etwa 5 % kleiner als ein Segel ohne Camber
+ * (z. B. 7,8 m² mit Camber ≈ 8,2 m² ohne Camber).
+ */
+enum class SailType(val label: String, val description: String, val factor: Double) {
+    OHNE_CAMBER("Ohne Camber", "Freeride, Freemove, Wave – leichter und handlicher", 1.0),
+    CAMBER("Mit Camber", "Freerace, Race – stabiles Profil, zieht effizienter (ca. 5 % kleiner)", 0.95),
+}
+
 /** Einheit für die Windeingabe. Intern rechnet die App immer in Knoten. */
 enum class WindUnit(val label: String, val min: Int, val max: Int, val converterMax: Double) {
     KNOTEN("kn", 5, 45, 80.0),
@@ -116,9 +126,14 @@ object WindsurfCalculator {
     fun rawSail(weightKg: Double, windKnots: Double): Double =
         SAIL_K * weightKg / windKnots.coerceAtLeast(1.0).pow(SAIL_EXP)
 
-    fun sailSize(weightKg: Double, windKnots: Double, level: Level): Double {
+    fun sailSize(
+        weightKg: Double,
+        windKnots: Double,
+        level: Level,
+        sailType: SailType = SailType.OHNE_CAMBER,
+    ): Double {
         val upper = level.maxSail(weightKg).coerceAtLeast(MIN_SAIL)
-        return round1(rawSail(weightKg, windKnots).coerceIn(MIN_SAIL, upper))
+        return round1((rawSail(weightKg, windKnots) * sailType.factor).coerceIn(MIN_SAIL, upper))
     }
 
     private fun freerideExtra(windKnots: Double): Double {
@@ -159,18 +174,25 @@ object WindsurfCalculator {
 
     fun beaufortName(bft: Int): String = BEAUFORT_NAMES[bft.coerceIn(0, BEAUFORT_NAMES.lastIndex)]
 
-    fun calculate(weightKg: Double, windKnots: Double, level: Level): CalculationResult {
+    fun calculate(
+        weightKg: Double,
+        windKnots: Double,
+        level: Level,
+        sailType: SailType = SailType.OHNE_CAMBER,
+    ): CalculationResult {
         val weight = weightKg.coerceIn(MIN_WEIGHT, MAX_WEIGHT)
         val wind = windKnots.coerceIn(MIN_WIND, MAX_WIND)
 
-        val sail = sailSize(weight, wind, level)
+        val sail = sailSize(weight, wind, level, sailType)
         val sailUpper = min(MAX_SAIL, level.maxSail(weight)).coerceAtLeast(MIN_SAIL)
         val volume = boardVolume(weight, wind, level)
         val type = boardType(volume, weight, level)
 
         val width = (38 + volume * 0.29).coerceIn(54.0, 92.0).roundToInt()
         // Freeride-Finne ≈ 10 cm + 3,6 × Segel (7,2–8,6 m² → 36–40 cm), Wavefinne kürzer
-        val finRaw = if (type == "Waveboard") sail * 4.4 else 10 + sail * 3.6
+        // Finne nach der Zugkraft: Camber-Segel wie ein entsprechend größeres Segel ohne Camber
+        val pullSail = sail / sailType.factor
+        val finRaw = if (type == "Waveboard") pullSail * 4.4 else 10 + pullSail * 3.6
         val fin = finRaw.coerceIn(16.0, 52.0).roundToInt()
 
         val bft = beaufort(wind)
@@ -189,15 +211,23 @@ object WindsurfCalculator {
             beaufortName = beaufortName(bft),
             windKmh = wind * 1.852,
             windMs = wind * 0.5144,
-            hints = hints(weight, wind, level),
+            hints = hints(weight, wind, level, sailType),
         )
     }
 
-    fun table(weightKg: Double, level: Level): List<TableRow> = TABLE_WINDS.map { kn ->
-        TableRow(kn, sailSize(weightKg, kn.toDouble(), level), boardVolume(weightKg, kn.toDouble(), level))
+    fun table(
+        weightKg: Double,
+        level: Level,
+        sailType: SailType = SailType.OHNE_CAMBER,
+    ): List<TableRow> = TABLE_WINDS.map { kn ->
+        TableRow(
+            kn,
+            sailSize(weightKg, kn.toDouble(), level, sailType),
+            boardVolume(weightKg, kn.toDouble(), level),
+        )
     }
 
-    private fun hints(weight: Double, wind: Double, level: Level): List<Hint> {
+    private fun hints(weight: Double, wind: Double, level: Level, sailType: SailType): List<Hint> {
         val list = mutableListOf<Hint>()
         val raw = rawSail(weight, wind)
 
@@ -228,6 +258,12 @@ object WindsurfCalculator {
         if (wind >= 34) list += Hint(
             "Sturm! Nur für sehr erfahrene Surfer, nie allein und nie bei ablandigem Wind.", true,
         )
+        if (sailType == SailType.CAMBER && (level == Level.EINSTEIGER || level == Level.AUFSTEIGER)) {
+            list += Hint(
+                "Camber-Segel sind schwerer und beim Wasserstart und in der Halse träger. " +
+                    "Zum Lernen ist ein Segel ohne Camber meist die bessere Wahl.", false,
+            )
+        }
         if (list.none { it.isWarning }) list += Hint(
             "Bei böigem Wind lieber eine Nummer kleiner, bei konstantem Wind eher größer wählen.", false,
         )

@@ -139,21 +139,31 @@ fun CalculatorScreen(prefs: SharedPreferences) {
         )
     }
 
-    LaunchedEffect(weight, wind, level, windUnit) {
+    var sailType by rememberSaveable {
+        mutableStateOf(
+            runCatching { SailType.valueOf(prefs.getString("segeltyp", null) ?: "") }
+                .getOrDefault(SailType.OHNE_CAMBER),
+        )
+    }
+
+    LaunchedEffect(weight, wind, level, windUnit, sailType) {
         prefs.edit()
             .putFloat("gewicht", weight)
             .putFloat("wind", wind)
             .putString("stufe", level.name)
             .putString("windeinheit", windUnit.name)
+            .putString("segeltyp", sailType.name)
             .apply()
     }
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
-    val result = remember(weight, wind, level) {
-        WindsurfCalculator.calculate(weight.toDouble(), wind.toDouble(), level)
+    val result = remember(weight, wind, level, sailType) {
+        WindsurfCalculator.calculate(weight.toDouble(), wind.toDouble(), level, sailType)
     }
-    val table = remember(weight, level) { WindsurfCalculator.table(weight.toDouble(), level) }
+    val table = remember(weight, level, sailType) {
+        WindsurfCalculator.table(weight.toDouble(), level, sailType)
+    }
 
     Scaffold { innerPadding ->
         Column(
@@ -209,14 +219,15 @@ fun CalculatorScreen(prefs: SharedPreferences) {
                             )
                         }
                         LevelPicker(level) { level = it }
+                        SailTypePicker(sailType) { sailType = it }
                     }
                 }
 
-                ResultCards(result)
+                ResultCards(result, sailType)
 
                 result.hints.forEach { HintCard(it) }
 
-                SailTable(table, wind.roundToInt(), weight.roundToInt())
+                SailTable(table, wind.roundToInt(), weight.roundToInt(), sailType)
 
                 Text(
                     "Richtwerte nach gängigen Segel- und Boardtabellen für gleitfähige Bedingungen. " +
@@ -351,6 +362,30 @@ private fun WindUnitPicker(selected: WindUnit, onSelect: (WindUnit) -> Unit) {
 }
 
 @Composable
+private fun SailTypePicker(selected: SailType, onSelect: (SailType) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Segeltyp", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SailType.entries.forEach { type ->
+                FilterChip(
+                    selected = type == selected,
+                    onClick = { onSelect(type) },
+                    label = {
+                        Text(type.label, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Text(
+            selected.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun LevelPicker(selected: Level, onSelect: (Level) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Dein Können", style = MaterialTheme.typography.titleMedium)
@@ -377,10 +412,10 @@ private fun LevelPicker(selected: Level, onSelect: (Level) -> Unit) {
 }
 
 @Composable
-private fun ResultCards(r: CalculationResult) {
+private fun ResultCards(r: CalculationResult, sailType: SailType) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         BigResult(
-            title = "Segel",
+            title = if (sailType == SailType.CAMBER) "Segel mit Camber" else "Segel",
             value = "${r.sailM2.de()} m²",
             sub = "${r.sailMinM2.de()}–${r.sailMaxM2.de()} m²",
             container = MaterialTheme.colorScheme.primaryContainer,
@@ -475,11 +510,14 @@ private fun HintCard(hint: Hint) {
 }
 
 @Composable
-private fun SailTable(rows: List<TableRow>, currentWind: Int, weight: Int) {
+private fun SailTable(rows: List<TableRow>, currentWind: Int, weight: Int, sailType: SailType) {
     val nearest = rows.minByOrNull { abs(it.windKnots - currentWind) }?.windKnots
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Übersicht für $weight kg", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Übersicht für $weight kg" + if (sailType == SailType.CAMBER) " · Camber" else "",
+                style = MaterialTheme.typography.titleMedium,
+            )
             Text(
                 "Welches Segel und Board bei welchem Wind",
                 style = MaterialTheme.typography.bodySmall,

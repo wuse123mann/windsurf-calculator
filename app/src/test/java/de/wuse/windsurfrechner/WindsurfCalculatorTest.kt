@@ -18,6 +18,17 @@ class WindsurfCalculatorTest {
     }
 
     @Test
+    fun camberSegelKleinerBeiGleicherZugkraft() {
+        // 108 kg, 15 kn: 8,2 m² ohne Camber entspricht 7,8 m² mit Camber
+        val ohne = WindsurfCalculator.calculate(108.0, 15.0, Level.FORTGESCHRITTEN, SailType.OHNE_CAMBER)
+        val mit = WindsurfCalculator.calculate(108.0, 15.0, Level.FORTGESCHRITTEN, SailType.CAMBER)
+        assertEquals(8.2, ohne.sailM2, 0.001)
+        assertEquals(7.8, mit.sailM2, 0.001)
+        assertEquals(ohne.volumeL, mit.volumeL)
+        assertEquals(ohne.finCm, mit.finCm)
+    }
+
+    @Test
     fun segelWieInUeblichenTabellen() {
         // Referenztabelle 80 kg: 10 kn 8,5 m², 25 kn 4,0 m²
         assertEquals(8.5, WindsurfCalculator.sailSize(80.0, 10.0, Level.FORTGESCHRITTEN), 0.001)
