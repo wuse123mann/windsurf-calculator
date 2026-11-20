@@ -1,20 +1,38 @@
 # Windsurf-Rechner 🏄
 
 Android-App, die aus **Körpergewicht (kg)** und **Wind** (wahlweise in Knoten, km/h, m/s
-oder Beaufort) die passende
-**Segelgröße** und **Boardgröße** berechnet.
+oder Beaufort) die passende **Segelgröße** und **Boardgröße** berechnet – plus Spots mit
+stündlicher Vorhersage, Wind-Alarm und eigenem Material.
 
-## Was die App anzeigt
-- Segelgröße in m² (mit sinnvollem Bereich)
-- Boardvolumen in Litern, Boardtyp, ungefähre Breite und Finnenlänge
-- Wind in km/h, m/s und Beaufort
-- Hinweise und Warnungen (zu wenig Wind, zu viel Wind für die Könnerstufe, Sturm)
-- Tabelle: welches Segel/Board bei welchem Wind für dein Gewicht
-- **Umrechner** (eigener Tab): Knoten ⇄ km/h ⇄ m/s ⇄ Beaufort (+ mph), mit Beaufort-Skala
-  und Übernahme des Werts in den Rechner
+## Gratis
+- **Rechner:** Segelgröße in m² (mit Bereich), Boardvolumen, Boardtyp, Breite, Finne,
+  Hinweise und Tabelle „welches Segel/Board bei welchem Wind“; Segeltyp (mit/ohne Camber)
+  und Könnerstufe wählbar
+- **Umrechner:** Knoten ⇄ km/h ⇄ m/s ⇄ Beaufort (+ mph), mit Beaufort-Skala
 
-Zusätzlich lassen sich der Segeltyp (mit/ohne Camber) und die Könnerstufe wählen (Einsteiger bis Profi), weil sie
-vor allem das Boardvolumen stark beeinflusst.
+## Premium (Einmalkauf, kein Abo)
+- **Spots:** per Ortssuche oder Koordinaten anlegen; pro Spot stündlich Wind, Böen, Richtung,
+  Temperatur, Regen und die passende Segel- und Boardgröße für die nächsten ca. 2½ Tage
+- **Wind-Alarm 🔔:** prüft ca. alle 3 Stunden im Hintergrund und meldet sich, wenn an einem Spot
+  genug gleitbare Stunden angesagt sind (heute / heute + morgen / bis übermorgen, höchstens
+  einmal pro Spot und Tag)
+- **Material:** eigene Segel und Boards eintragen – Rechner und Vorhersage zeigen dann,
+  welches eigene Teil am besten passt
+
+## Varianten
+| Variante | Wofür | Premium |
+|---|---|---|
+| `github` | APK im GitHub-Release (eigene Nutzung) | immer frei |
+| `play` | App-Bundle für den Play Store | Einmalkauf über Google Play Billing, Produkt-ID `premium` |
+
+## Wetterdaten
+Die Vorhersage kommt von **GeoSphere Austria** (staatlicher Wetterdienst), Modell
+C-LAEF AlpeAdria mit 1 km Auflösung, stündlich, ca. 60 Stunden voraus
+(`nwp-v2-1h-1km` über die [Dataset-API](https://dataset.api.hub.geosphere.at/v1/docs/)).
+Die Daten stehen unter **CC BY 4.0** – kostenlos, ohne Konto und Schlüssel, und dürfen mit
+Quellenangabe auch in einer Bezahl-App genutzt werden. Abgedeckt ist der erweiterte Alpenraum
+(ca. 43–51,5° N, 5–22,5° O: Österreich, Schweiz, Süddeutschland, Norditalien inkl. Gardasee,
+Slowenien, Istrien, Ungarn inkl. Balaton). Die Ortssuche nutzt den Geocoder von Android.
 
 ## Formeln (Richtwerte)
 - **Segel:** 0,725 × Gewicht ÷ Wind^0,834 (m², Wind in kn), begrenzt auf 2,5–12 m².
@@ -32,6 +50,13 @@ vor allem das Boardvolumen stark beeinflusst.
 
 Die Logik steckt in `app/src/main/java/de/wuse/windsurfrechner/WindsurfCalculator.kt`.
 
+Die Vorhersage-Logik (GeoSphere, Sonnenstand, Segel pro Stunde, Alarm) steckt in
+`app/src/main/java/de/wuse/windsurfrechner/Forecast.kt`.
+
 ## Bauen
-Jeder Push auf `main` baut per GitHub Actions eine signierte APK
-(Artefakt **WindsurfRechner-apk**, außerdem als GitHub-Release `v1.0.<Build>` und im Branch `apk`). Lokal: `./gradlew assembleRelease`.
+Jeder Push auf `main` baut per GitHub Actions:
+- die signierte APK der `github`-Variante (Artefakt **WindsurfRechner-apk**, GitHub-Release
+  `v1.0.<Build>` und Branch `apk`)
+- das App-Bundle der `play`-Variante (Artefakt **WindsurfRechner-play-aab**) für die Play Console
+
+Lokal: `./gradlew assembleGithubRelease` bzw. `./gradlew bundlePlayRelease`.

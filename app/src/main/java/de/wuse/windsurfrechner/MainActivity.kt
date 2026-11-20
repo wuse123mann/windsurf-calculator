@@ -1,9 +1,9 @@
 package de.wuse.windsurfrechner
 
-import android.content.Context
-import android.content.SharedPreferences
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -41,11 +41,15 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,25 +57,41 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Locale
+import kotlinx.coroutines.launch
+import java.net.UnknownHostException
+import java.time.LocalDateTime
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
+    /** Spot, der per Tipp auf eine Wind-Alarm-Benachrichtigung geöffnet werden soll. */
+    private val openSpot = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val prefs = getSharedPreferences("einstellungen", Context.MODE_PRIVATE)
+        val storage = Storage(applicationContext)
+        Premium.init(applicationContext)
+        if (Premium.isUnlocked(applicationContext) && storage.loadSpotSettings().alarmEnabled) {
+            WindAlarm.schedule(applicationContext, true)
+        }
+        openSpot.value = intent?.getStringExtra(WindAlarm.EXTRA_SPOT)
         setContent {
             WindsurfTheme {
-                CalculatorScreen(prefs)
+                App(storage, openSpot.value) { openSpot.value = null }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra(WindAlarm.EXTRA_SPOT)?.let { openSpot.value = it }
     }
 }
 
@@ -90,6 +110,8 @@ private val LightColors: ColorScheme = lightColorScheme(
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFFFE0D3),
     onSecondaryContainer = Color(0xFF5A1D00),
+    tertiaryContainer = Color(0xFFD3F5DC),
+    onTertiaryContainer = Color(0xFF0B3A19),
     background = Color(0xFFF3F8FB),
     surface = Color(0xFFF3F8FB),
 )
@@ -103,6 +125,8 @@ private val DarkColors: ColorScheme = darkColorScheme(
     onSecondary = Color(0xFF5A1D00),
     secondaryContainer = Color(0xFF7A2E0C),
     onSecondaryContainer = Color(0xFFFFE0D3),
+    tertiaryContainer = Color(0xFF1C5A30),
+    onTertiaryContainer = Color(0xFFD3F5DC),
     background = Color(0xFF0D1A21),
     surface = Color(0xFF0D1A21),
 )
@@ -115,134 +139,264 @@ fun WindsurfTheme(content: @Composable () -> Unit) {
     )
 }
 
-// ---------- Hilfsfunktionen ----------
+// ---------- Navigation & Zustand ----------
 
-internal fun Double.de(decimals: Int = 1): String = String.format(Locale.GERMANY, "%.${decimals}f", this)
+sealed interface Screen {
+    data object Main : Screen
+    data object AddSpot : Screen
+    data class Detail(val spotId: String) : Screen
+}
 
-// ---------- Screen ----------
+private const val TAB_CALC = 0
+private const val TAB_CONVERTER = 1
+private const val TAB_SPOTS = 2
+private const val TAB_MATERIAL = 3
 
 @Composable
-fun CalculatorScreen(prefs: SharedPreferences) {
-    var weight by rememberSaveable { mutableFloatStateOf(prefs.getFloat("gewicht", 80f)) }
-    var wind by rememberSaveable { mutableFloatStateOf(prefs.getFloat("wind", 15f)) }
-    var level by rememberSaveable {
-        mutableStateOf(
-            runCatching { Level.valueOf(prefs.getString("stufe", null) ?: "") }
-                .getOrDefault(Level.FORTGESCHRITTEN),
-        )
-    }
+fun App(storage: Storage, openSpotId: String?, onSpotOpened: () -> Unit) {
+    val context = LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
+    val unlocked by Premium.unlocked.collectAsState()
 
-    var windUnit by rememberSaveable {
-        mutableStateOf(
-            runCatching { WindUnit.valueOf(prefs.getString("windeinheit", null) ?: "") }
-                .getOrDefault(WindUnit.KNOTEN),
-        )
-    }
-
-    var sailType by rememberSaveable {
-        mutableStateOf(
-            runCatching { SailType.valueOf(prefs.getString("segeltyp", null) ?: "") }
-                .getOrDefault(SailType.OHNE_CAMBER),
-        )
-    }
+    // ----- Rechner -----
+    var weight by rememberSaveable { mutableFloatStateOf(storage.weight()) }
+    var wind by rememberSaveable { mutableFloatStateOf(storage.windKnots()) }
+    var level by rememberSaveable { mutableStateOf(storage.level()) }
+    var windUnit by rememberSaveable { mutableStateOf(storage.windUnit()) }
+    var sailType by rememberSaveable { mutableStateOf(storage.sailType()) }
 
     LaunchedEffect(weight, wind, level, windUnit, sailType) {
-        prefs.edit()
-            .putFloat("gewicht", weight)
-            .putFloat("wind", wind)
-            .putString("stufe", level.name)
-            .putString("windeinheit", windUnit.name)
-            .putString("segeltyp", sailType.name)
-            .apply()
+        storage.saveCalculator(weight, wind, level, windUnit, sailType)
     }
 
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // ----- Spots, Alarm, Material (Premium) -----
+    val spots = remember { mutableStateListOf<Spot>().apply { addAll(storage.loadSpots()) } }
+    var spotPrefs by remember { mutableStateOf(storage.loadSpotSettings()) }
+    var quiver by remember { mutableStateOf(storage.loadQuiver()) }
+    val forecasts = remember { mutableStateMapOf<String, ForecastState>() }
+    val settings = spotPrefs.copy(weightKg = weight.toDouble(), level = level, sailType = sailType)
 
-    val result = remember(weight, wind, level, sailType) {
-        WindsurfCalculator.calculate(weight.toDouble(), wind.toDouble(), level, sailType)
+    var tab by rememberSaveable { mutableIntStateOf(TAB_CALC) }
+    var backStack by remember { mutableStateOf(listOf<Screen>(Screen.Main)) }
+
+    fun navigate(s: Screen) { backStack = backStack + s }
+    fun back() { if (backStack.size > 1) backStack = backStack.dropLast(1) }
+    fun replaceTop(s: Screen) { backStack = backStack.dropLast(1) + s }
+
+    /** Lädt die Vorhersage – alle Spots in einer Anfrage; frische Daten (< 30 min) werden behalten. */
+    fun loadForecasts(force: Boolean, only: Spot? = null) {
+        val now = LocalDateTime.now()
+        val toLoad = (if (only != null) listOf(only) else spots.toList()).filter { s ->
+            if (!s.covered) {
+                forecasts[s.id] = ForecastState.OutOfArea
+                false
+            } else {
+                val cur = forecasts[s.id]
+                val fresh = cur is ForecastState.Ok && cur.loadedAt.isAfter(now.minusMinutes(30))
+                force || !(cur is ForecastState.Loading || fresh)
+            }
+        }
+        if (toLoad.isEmpty()) return
+        toLoad.forEach { forecasts[it.id] = ForecastState.Loading }
+        scope.launch {
+            try {
+                val result = GeoSphere.forecast(toLoad.map { it.lat to it.lon })
+                val stamp = LocalDateTime.now()
+                toLoad.zip(result).forEach { (s, hours) -> forecasts[s.id] = ForecastState.Ok(hours, stamp) }
+            } catch (e: Exception) {
+                val msg = if (e is UnknownHostException) "Keine Internetverbindung" else e.message ?: "Fehler beim Laden"
+                toLoad.forEach { forecasts[it.id] = ForecastState.Error(msg) }
+            }
+        }
     }
-    val table = remember(weight, level, sailType) {
-        WindsurfCalculator.table(weight.toDouble(), level, sailType)
+
+    fun updateSpotSettings(s: SpotSettings) {
+        val alarmChanged = s.alarmEnabled != spotPrefs.alarmEnabled
+        spotPrefs = s
+        storage.saveSpotSettings(s)
+        if (alarmChanged) WindAlarm.schedule(context, s.alarmEnabled)
     }
 
-    Scaffold { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Header()
+    fun updateSpot(s: Spot) {
+        val i = spots.indexOfFirst { it.id == s.id }
+        if (i >= 0) spots[i] = s else spots.add(s)
+        storage.saveSpots(spots.toList())
+    }
 
-            TabRow(
-                selectedTabIndex = tab,
-                modifier = Modifier.clip(RoundedCornerShape(14.dp)),
-            ) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Rechner") })
-                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Umrechner") })
+    fun updateQuiver(q: Quiver) {
+        quiver = q
+        storage.saveQuiver(q)
+    }
+
+    LaunchedEffect(openSpotId, unlocked) {
+        if (openSpotId != null) {
+            if (unlocked && spots.any { it.id == openSpotId }) {
+                tab = TAB_SPOTS
+                backStack = listOf(Screen.Main, Screen.Detail(openSpotId))
+            }
+            onSpotOpened()
+        }
+    }
+
+    BackHandler(enabled = backStack.size > 1) { back() }
+
+    when (val screen = backStack.last()) {
+        Screen.Main -> {
+            val result = remember(weight, wind, level, sailType) {
+                WindsurfCalculator.calculate(weight.toDouble(), wind.toDouble(), level, sailType)
+            }
+            val table = remember(weight, level, sailType) {
+                WindsurfCalculator.table(weight.toDouble(), level, sailType)
             }
 
-            if (tab == 1) {
-                ConverterContent(initialKnots = wind) { kn ->
-                    wind = kn.coerceIn(
-                        WindsurfCalculator.MIN_WIND.toFloat(),
-                        WindsurfCalculator.MAX_WIND.toFloat(),
-                    )
-                    tab = 0
-                }
-            } else {
+            Scaffold { innerPadding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(innerPadding)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Header()
 
-                ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        NumberInput(
-                            title = "Dein Gewicht",
-                            unit = "kg",
-                            value = weight,
-                            min = WindsurfCalculator.MIN_WEIGHT.toFloat(),
-                            max = WindsurfCalculator.MAX_WEIGHT.toFloat(),
-                            onChange = { weight = it },
-                            supporting = "inkl. Neoprenanzug",
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            WindUnitPicker(windUnit) { windUnit = it }
-                            NumberInput(
-                                title = "Windstärke",
-                                unit = windUnit.label,
-                                value = windUnit.fromKnots(wind.toDouble()).toFloat(),
-                                min = windUnit.min.toFloat(),
-                                max = windUnit.max.toFloat(),
-                                onChange = { wind = windUnit.toKnots(it.toDouble()).toFloat() },
-                                supporting = "${wind.toDouble().de(0)} kn · ${result.windKmh.de(0)} km/h · " +
-                                    "${result.windMs.de(1)} m/s · ${result.beaufort} Bft (${result.beaufortName})",
+                    TabRow(
+                        selectedTabIndex = tab,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+                    ) {
+                        Tab(selected = tab == TAB_CALC, onClick = { tab = TAB_CALC }, text = { Text("Rechner") })
+                        Tab(selected = tab == TAB_CONVERTER, onClick = { tab = TAB_CONVERTER }, text = { Text("Umrechner") })
+                        Tab(selected = tab == TAB_SPOTS, onClick = { tab = TAB_SPOTS }, text = { Text("Spots") })
+                        Tab(selected = tab == TAB_MATERIAL, onClick = { tab = TAB_MATERIAL }, text = { Text("Material") })
+                    }
+
+                    when (tab) {
+                        TAB_CONVERTER -> ConverterContent(initialKnots = wind) { kn ->
+                            wind = kn.coerceIn(
+                                WindsurfCalculator.MIN_WIND.toFloat(),
+                                WindsurfCalculator.MAX_WIND.toFloat(),
+                            )
+                            tab = TAB_CALC
+                        }
+
+                        TAB_SPOTS -> if (unlocked) {
+                            SpotsContent(
+                                spots = spots,
+                                settings = settings,
+                                quiver = quiver,
+                                forecastFor = { forecasts[it.id] },
+                                onLoad = { force -> loadForecasts(force) },
+                                onOpen = { navigate(Screen.Detail(it.id)) },
+                                onAdd = { navigate(Screen.AddSpot) },
+                                onMove = { from, to ->
+                                    if (to in spots.indices) {
+                                        val s = spots.removeAt(from)
+                                        spots.add(to, s)
+                                        storage.saveSpots(spots.toList())
+                                    }
+                                },
+                                onSettingsChange = ::updateSpotSettings,
+                            )
+                        } else {
+                            PremiumCard()
+                        }
+
+                        TAB_MATERIAL -> if (unlocked) {
+                            MaterialContent(quiver, ::updateQuiver)
+                        } else {
+                            PremiumCard()
+                        }
+
+                        else -> {
+                            ElevatedCard(Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                                    NumberInput(
+                                        title = "Dein Gewicht",
+                                        unit = "kg",
+                                        value = weight,
+                                        min = WindsurfCalculator.MIN_WEIGHT.toFloat(),
+                                        max = WindsurfCalculator.MAX_WEIGHT.toFloat(),
+                                        onChange = { weight = it },
+                                        supporting = "inkl. Neoprenanzug",
+                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        WindUnitPicker(windUnit) { windUnit = it }
+                                        NumberInput(
+                                            title = "Windstärke",
+                                            unit = windUnit.label,
+                                            value = windUnit.fromKnots(wind.toDouble()).toFloat(),
+                                            min = windUnit.min.toFloat(),
+                                            max = windUnit.max.toFloat(),
+                                            onChange = { wind = windUnit.toKnots(it.toDouble()).toFloat() },
+                                            supporting = "${wind.toDouble().de(0)} kn · ${result.windKmh.de(0)} km/h · " +
+                                                "${result.windMs.de(1)} m/s · ${result.beaufort} Bft (${result.beaufortName})",
+                                        )
+                                    }
+                                    LevelPicker(level) { level = it }
+                                    SailTypePicker(sailType) { sailType = it }
+                                }
+                            }
+
+                            ResultCards(result, sailType)
+
+                            if (unlocked) MyGearCard(quiver, result.sailM2, result.volumeL)
+
+                            result.hints.forEach { HintCard(it) }
+
+                            SailTable(table, wind.roundToInt(), weight.roundToInt(), sailType)
+
+                            Text(
+                                "Richtwerte nach gängigen Segel- und Boardtabellen für gleitfähige Bedingungen. " +
+                                    "Revier, Böigkeit, Material und Fahrstil verschieben die ideale Größe.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
                             )
                         }
-                        LevelPicker(level) { level = it }
-                        SailTypePicker(sailType) { sailType = it }
                     }
                 }
+            }
+        }
 
-                ResultCards(result, sailType)
+        Screen.AddSpot -> AddSpotScreen(
+            onBack = ::back,
+            onPick = { geo ->
+                val spot = Spot(name = geo.name, region = geo.region, lat = geo.lat, lon = geo.lon)
+                updateSpot(spot)
+                replaceTop(Screen.Detail(spot.id))
+            },
+        )
 
-                result.hints.forEach { HintCard(it) }
-
-                SailTable(table, wind.roundToInt(), weight.roundToInt(), sailType)
-
-                Text(
-                    "Richtwerte nach gängigen Segel- und Boardtabellen für gleitfähige Bedingungen. " +
-                        "Revier, Böigkeit, Material und Fahrstil verschieben die ideale Größe.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
+        is Screen.Detail -> {
+            val spot = spots.firstOrNull { it.id == screen.spotId }
+            if (spot == null) {
+                LaunchedEffect(screen) { back() }
+            } else {
+                SpotDetailScreen(
+                    spot = spot,
+                    settings = settings,
+                    quiver = quiver,
+                    state = forecasts[spot.id],
+                    load = { force -> loadForecasts(force, only = spot) },
+                    onSettingsChange = ::updateSpotSettings,
+                    onSpotChange = ::updateSpot,
+                    onDelete = {
+                        spots.removeAll { it.id == spot.id }
+                        storage.saveSpots(spots.toList())
+                        forecasts.remove(spot.id)
+                        back()
+                    },
+                    onBack = ::back,
                 )
             }
         }
     }
 }
+
+// ---------- Rechner ----------
 
 @Composable
 private fun Header() {
@@ -263,7 +417,7 @@ private fun Header() {
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                "Segel- und Boardgröße plus Wind-Umrechner",
+                "Segelgröße, Wind-Umrechner, Spots & Wind-Alarm",
                 color = Color.White.copy(alpha = 0.85f),
                 style = MaterialTheme.typography.bodyMedium,
             )

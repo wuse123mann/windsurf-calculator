@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Segel + Board, einfarbig für die Statusleiste -->
+    <path android:fillColor="#FFFFFF" android:pathData="M12,2 L12,17 L20,17 Q18.7,9 12,2 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M10.6,1.5 h1 v17 h-1 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M3.5,19.5 Q12,18.3 21,19.3 Q22.2,20 20.7,20.8 L5,20.8 Q3,20.4 3.5,19.5 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M2,6 h6 v1.4 h-6 Z M1,9.5 h7 v1.4 h-7 Z M2.5,13 h5.5 v1.4 h-5.5 Z" />
+</vector>
